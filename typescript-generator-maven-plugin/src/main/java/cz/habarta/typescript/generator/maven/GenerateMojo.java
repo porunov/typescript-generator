@@ -572,6 +572,22 @@ public class GenerateMojo extends AbstractMojo {
     private boolean scanSpringApplication;
 
     /**
+     * Additional annotations which are treated as optional request parameters during Spring controllers parsing when Spring's
+     * RequestParam or ModelAttribute is not used on a specific method's argument.
+     * This option may be useful when Spring controller method accepts custom resolved parameters.
+     */
+    @Parameter
+    private List<String> springCustomQueryParameterAnnotations;
+
+    /**
+     * Additional annotations which are treated as request body during Spring controllers parsing when Spring's
+     * RequestBody is not used on a specific method's argument.
+     * This option may be useful when Spring controller method accepts custom resolved parameters.
+     */
+    @Parameter
+    private List<String> springCustomRequestBodyAnnotations;
+
+    /**
      * Deprecated, use {@link #restNamespacing}.
      */
     @Deprecated
@@ -800,7 +816,7 @@ public class GenerateMojo extends AbstractMojo {
      */
     @Parameter
     private String npmBuildScript;
-    
+
     /**
      * List of additional NPM <code>dependencies</code>.<br>
      * Only applicable when {@link #generateNpmPackageJson} parameter is <code>true</code> and generating implementation file (.ts).<br>
@@ -809,7 +825,7 @@ public class GenerateMojo extends AbstractMojo {
      */
     @Parameter
     private List<String> npmDependencies;
-    
+
     /**
      * List of additional NPM <code>devDependencies</code>.<br>
      * Only applicable when {@link #generateNpmPackageJson} parameter is <code>true</code> and generating implementation file (.ts).<br>
@@ -818,7 +834,7 @@ public class GenerateMojo extends AbstractMojo {
      */
     @Parameter
     private List<String> npmDevDependencies;
-    
+
     /**
      * List of additional NPM <code>peerDependencies</code>.<br>
      * Only applicable when {@link #generateNpmPackageJson} parameter is <code>true</code> and generating implementation file (.ts).<br>
@@ -973,6 +989,8 @@ public class GenerateMojo extends AbstractMojo {
         settings.loadExtensions(classLoader, extensions, extensionsWithConfiguration);
         settings.loadIncludePropertyAnnotations(classLoader, includePropertyAnnotations);
         settings.loadExcludePropertyAnnotations(classLoader, excludePropertyAnnotations);
+        settings.loadSpringCustomQueryParameterAnnotations(classLoader, springCustomQueryParameterAnnotations);
+        settings.loadSpringCustomRequestBodyAnnotations(classLoader, springCustomRequestBodyAnnotations);
         settings.loadOptionalAnnotations(classLoader, optionalAnnotations);
         settings.loadRequiredAnnotations(classLoader, requiredAnnotations);
         settings.loadNullableAnnotations(classLoader, nullableAnnotations);
