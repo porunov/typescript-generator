@@ -39,15 +39,18 @@
 
     <distributionManagement>
         <snapshotRepository>
-            <id>ossrh-vojtech@habarta.cz</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/porunov/typescript-generator</url>
         </snapshotRepository>
         <repository>
-            <id>ossrh-vojtech@habarta.cz</id>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/porunov/typescript-generator</url>
         </repository>
         <site>
             <id>github.io</id>
+            <name>GitHub Packages</name>
             <url>http://vojtechhabarta.github.io/typescript-generator</url>
         </site>
     </distributionManagement>
