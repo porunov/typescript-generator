@@ -2,10 +2,14 @@
 package cz.habarta.typescript.generator.spring;
 
 import cz.habarta.typescript.generator.Input;
+import cz.habarta.typescript.generator.RestMethodBuilder;
 import cz.habarta.typescript.generator.Settings;
 import cz.habarta.typescript.generator.TestUtils;
 import cz.habarta.typescript.generator.TypeScriptFileType;
 import cz.habarta.typescript.generator.TypeScriptGenerator;
+import cz.habarta.typescript.generator.parser.MethodParameterModel;
+import cz.habarta.typescript.generator.parser.RestMethodModel;
+import cz.habarta.typescript.generator.parser.RestQueryParam;
 import cz.habarta.typescript.generator.util.Utils;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +18,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -188,6 +193,17 @@ public class SpringTest {
         settings.springCustomRequestBodyAnnotations = Arrays.asList(CustomRequestBody.class);
         final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(Controller9.class));
         Assertions.assertTrue(output.contains("setEntity(data: Data1): RestResponse<void>"));
+        Assertions.assertTrue(output.contains("interface Data1"));
+    }
+
+    @Test
+    public void testCustomRestMethodBuilder() {
+        final Settings settings = TestUtils.settings();
+        settings.outputFileType = TypeScriptFileType.implementationFile;
+        settings.generateSpringApplicationClient = true;
+        settings.customRestMethodBuilder = new CustomRestMethodBuilder();
+        final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(Controller3.class));
+        Assertions.assertTrue(output.contains("testName(data: Data1, queryParams: { testParam1: string; testParam2?: number; }): RestResponse<void>"));
         Assertions.assertTrue(output.contains("interface Data1"));
     }
 
@@ -537,6 +553,22 @@ public class SpringTest {
     @Target(ElementType.PARAMETER)
     public @interface CustomRequestBody {
 
+    }
+
+    public class CustomRestMethodBuilder implements RestMethodBuilder{
+
+        @Override
+        public RestMethodModel build(Class<?> originClass, String name, Type returnType,
+                                     Method originalMethod, Class<?> rootResource, String httpMethod,
+                                     String path, List<MethodParameterModel> pathParams, List<RestQueryParam> queryParams,
+                                     MethodParameterModel entityParam, List<String> comments) {
+
+            RestQueryParam.Single queryParam1 = new RestQueryParam.Single(new MethodParameterModel("testParam1", String.class), true);
+            RestQueryParam.Single queryParam2 = new RestQueryParam.Single(new MethodParameterModel("testParam2", Integer.class), false);
+
+            return new RestMethodModel(originClass, "testName", returnType, originalMethod, rootResource, httpMethod, path,
+                    pathParams, Arrays.asList(queryParam1, queryParam2), entityParam, comments);
+        }
     }
 
 }
