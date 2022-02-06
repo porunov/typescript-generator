@@ -126,6 +126,41 @@ public class SpringTest {
     }
 
     @Test
+    public void testUnfoldedQueryParameters() {
+        final Settings settings = TestUtils.settings();
+        settings.outputFileType = TypeScriptFileType.implementationFile;
+        settings.generateSpringApplicationClient = true;
+        settings.generateClientAsService = true;
+        final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(Controller2.class));
+        Assertions.assertTrue(output.contains("echo(message: string, count?: number, optionalRequestParam?: number): RestResponse<string>"));
+        Assertions.assertTrue(output.contains("let queryParams: any = {};"));
+        Assertions.assertTrue(output.contains("queryParams.message = message;"));
+        Assertions.assertTrue(output.contains("if (count != undefined) {"));
+        Assertions.assertTrue(output.contains("queryParams.count = count;"));
+        Assertions.assertTrue(output.contains("if (optionalRequestParam != undefined)"));
+        Assertions.assertTrue(output.contains("queryParams.optionalRequestParam = optionalRequestParam;"));
+        Assertions.assertTrue(output.contains("return this.httpClient.request({ method: \"GET\", url: uriEncoding`echo`, queryParams: queryParams });"));
+    }
+
+    @Test
+    public void testUnfoldedQueryParametersWithSkipOptionalParams() {
+        final Settings settings = TestUtils.settings();
+        settings.outputFileType = TypeScriptFileType.implementationFile;
+        settings.generateSpringApplicationClient = true;
+        settings.generateClientAsService = true;
+        settings.skipNullValuesForOptionalServiceArguments = true;
+        final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(Controller2.class));
+        Assertions.assertTrue(output.contains("echo(message: string, count?: number, optionalRequestParam?: number): RestResponse<string>"));
+        Assertions.assertTrue(output.contains("let queryParams: any = {};"));
+        Assertions.assertTrue(output.contains("queryParams.message = message;"));
+        Assertions.assertTrue(output.contains("if (count != null) {"));
+        Assertions.assertTrue(output.contains("queryParams.count = count;"));
+        Assertions.assertTrue(output.contains("if (optionalRequestParam != null)"));
+        Assertions.assertTrue(output.contains("queryParams.optionalRequestParam = optionalRequestParam;"));
+        Assertions.assertTrue(output.contains("return this.httpClient.request({ method: \"GET\", url: uriEncoding`echo`, queryParams: queryParams });"));
+    }
+
+    @Test
     public void testAllOptionalQueryParameters() {
         final Settings settings = TestUtils.settings();
         settings.outputFileType = TypeScriptFileType.implementationFile;
@@ -226,6 +261,23 @@ public class SpringTest {
         settings.restHeaderArgumentsParsed = true;
         final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(Controller11.class));
         Assertions.assertTrue(output.contains("sendHeadersAndQueryParams(queryParams: { petId: string; }, headers: { ownerId: number; }): RestResponse<void>"));
+    }
+
+    @Test
+    public void testHeadersServiceWithNonValidHeaderNames() {
+        final Settings settings = TestUtils.settings();
+        settings.outputFileType = TypeScriptFileType.implementationFile;
+        settings.generateSpringApplicationClient = true;
+        settings.restHeaderArgumentsParsed = true;
+        settings.generateClientAsService = true;
+        final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(Controller12.class));
+        Assertions.assertTrue(output.contains("sendHeaders(ownerId: number, petId?: string, normalHeader: number): RestResponse<void>"));
+        Assertions.assertTrue(output.contains("let headers: any = {};"));
+        Assertions.assertTrue(output.contains("headers[\"owner-id\"] = ownerId;"));
+        Assertions.assertTrue(output.contains("if (petId != undefined)"));
+        Assertions.assertTrue(output.contains("headers[\"pet-id\"] = petId;"));
+        Assertions.assertTrue(output.contains("headers.normalHeader = normalHeader;"));
+        Assertions.assertTrue(output.contains("return this.httpClient.request({ method: \"GET\", url: uriEncoding`headers12`, headers: headers });"));
     }
 
     @RestController
@@ -383,6 +435,15 @@ public class SpringTest {
                 @RequestHeader Long ownerId,
                 @RequestParam String petId
         ) {}
+    }
+
+    @RestController
+    public static class Controller12 {
+        @GetMapping("/headers12")
+        public void sendHeaders(
+                @RequestHeader(name = "owner-id") Long ownerId,
+                @RequestHeader(name = "pet-id", required = false) String petId,
+                @RequestHeader Long normalHeader) {}
     }
 
     public static class Pet {

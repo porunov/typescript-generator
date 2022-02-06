@@ -76,4 +76,10 @@ public class UtilsTest {
         Assertions.assertFalse(Utils.isPrimitiveType(NewClass.class));
     }
 
+    @Test
+    public void testShouldConvertStringToCorrectJavaScriptVariableName(){
+        Assertions.assertEquals("helloWorld", Utils.toValidJavaScriptVariableName("hello-world"));
+        Assertions.assertEquals("helloWorld", Utils.toValidJavaScriptVariableName("123hello   world"));
+        Assertions.assertEquals("hello123World", Utils.toValidJavaScriptVariableName("hello123World"));
+    }
 }
