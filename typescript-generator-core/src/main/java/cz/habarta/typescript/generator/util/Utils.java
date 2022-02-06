@@ -508,4 +508,35 @@ public final class Utils {
         return () -> value.updateAndGet(current -> current != null ? current : Objects.requireNonNull(supplier.get()));
     }
 
+    public static String toValidJavaScriptVariableName(String variableName){
+
+        StringBuilder validJavaScriptVariableName = new StringBuilder();
+
+        boolean convertNextLetterToCapital = false;
+
+        for(int i=0; i<variableName.length(); i++){
+
+            char currentChar = variableName.charAt(i);
+
+            if(currentChar >= '0' && currentChar <= '9'){
+
+                if(validJavaScriptVariableName.length() == 0){
+                    // Number prefix is forbidden
+                    continue;
+                }
+
+            } else if (currentChar >= 'a' && currentChar <= 'z'){
+                if(convertNextLetterToCapital){
+                    currentChar = Character.toUpperCase(currentChar);
+                }
+            } else if(currentChar != '_' && (currentChar < 'A' || currentChar > 'Z')){
+                convertNextLetterToCapital = validJavaScriptVariableName.length() > 0;
+                continue;
+            }
+            validJavaScriptVariableName.append(currentChar);
+            convertNextLetterToCapital = false;
+        }
+
+        return validJavaScriptVariableName.toString();
+    }
 }

@@ -21,6 +21,8 @@ import cz.habarta.typescript.generator.emitter.TsAliasModel;
 import cz.habarta.typescript.generator.emitter.TsAssignmentExpression;
 import cz.habarta.typescript.generator.emitter.TsBeanCategory;
 import cz.habarta.typescript.generator.emitter.TsBeanModel;
+import cz.habarta.typescript.generator.emitter.TsBinaryExpression;
+import cz.habarta.typescript.generator.emitter.TsBinaryOperator;
 import cz.habarta.typescript.generator.emitter.TsCallExpression;
 import cz.habarta.typescript.generator.emitter.TsConstructorModel;
 import cz.habarta.typescript.generator.emitter.TsEnumModel;
@@ -28,6 +30,7 @@ import cz.habarta.typescript.generator.emitter.TsExpression;
 import cz.habarta.typescript.generator.emitter.TsExpressionStatement;
 import cz.habarta.typescript.generator.emitter.TsHelper;
 import cz.habarta.typescript.generator.emitter.TsIdentifierReference;
+import cz.habarta.typescript.generator.emitter.TsIfStatement;
 import cz.habarta.typescript.generator.emitter.TsMemberExpression;
 import cz.habarta.typescript.generator.emitter.TsMethodModel;
 import cz.habarta.typescript.generator.emitter.TsModel;
@@ -43,6 +46,7 @@ import cz.habarta.typescript.generator.emitter.TsSuperExpression;
 import cz.habarta.typescript.generator.emitter.TsTaggedTemplateLiteral;
 import cz.habarta.typescript.generator.emitter.TsTemplateLiteral;
 import cz.habarta.typescript.generator.emitter.TsThisExpression;
+import cz.habarta.typescript.generator.emitter.TsVariableDeclarationStatement;
 import cz.habarta.typescript.generator.parser.BeanModel;
 import cz.habarta.typescript.generator.parser.EnumModel;
 import cz.habarta.typescript.generator.parser.MethodModel;
@@ -733,13 +737,15 @@ public class ModelCompiler {
             parameters.add(processParameter(symbolTable, method, method.getEntityParam()));
         }
         // query params
-        final TsParameterModel queryParameter = convertRestParams(method.getQueryParams(), symbolTable, method, tsModel, "queryParams", "QueryParams");
-        if(queryParameter != null){
+        final List<TsProperty> allQuerySingles = new ArrayList<>();
+        final TsParameterModel queryParameter = convertRestParams(method.getQueryParams(), parameters, symbolTable, method, tsModel, "queryParams", "QueryParams", allQuerySingles);
+        if(queryParameter != null && !settings.generateClientAsService){
             parameters.add(queryParameter);
         }
-        // body params
-        final TsParameterModel headersParameter = convertRestParams(method.getHeaders(), symbolTable, method, tsModel, "headers", "Headers");
-        if(headersParameter != null){
+        // header params
+        final List<TsProperty> allHeaderSingles = new ArrayList<>();
+        final TsParameterModel headersParameter = convertRestParams(method.getHeaders(), parameters, symbolTable, method, tsModel, "headers", "Headers", allHeaderSingles);
+        if(headersParameter != null && !settings.generateClientAsService){
             parameters.add(headersParameter);
         }
         if (optionsType != null) {
@@ -762,6 +768,14 @@ public class ModelCompiler {
         final List<TsStatement> body;
         if (implement) {
             body = new ArrayList<>();
+            if(settings.generateClientAsService){
+                if(!allQuerySingles.isEmpty()){
+                    initServiceParameters(body, allQuerySingles, "queryParams");
+                }
+                if(!allHeaderSingles.isEmpty()){
+                    initServiceParameters(body, allHeaderSingles, "headers");
+                }
+            }
             body.add(new TsReturnStatement(
                     new TsCallExpression(
                             new TsMemberExpression(new TsMemberExpression(new TsThisExpression(), "httpClient"), "request"),
@@ -778,12 +792,64 @@ public class ModelCompiler {
         } else {
             body = null;
         }
+        List<TsParameterModel> orderedParameters = new ArrayList<>(parameters.size());
+        List<TsParameterModel> optionalParameters = new ArrayList<>(parameters.size());
+        for(TsParameterModel parameter : parameters){
+            if(parameter.getTsType() instanceof TsType.OptionalType){
+                optionalParameters.add(parameter);
+            } else {
+                orderedParameters.add(parameter);
+            }
+        }
+        orderedParameters.addAll(optionalParameters);
         // method
-        final TsMethodModel tsMethodModel = new TsMethodModel(method.getName() + nameSuffix, TsModifierFlags.None, null, parameters, wrappedReturnType, body, comments);
+        final TsMethodModel tsMethodModel = new TsMethodModel(method.getName() + nameSuffix, TsModifierFlags.None, null, orderedParameters, wrappedReturnType, body, comments);
         return tsMethodModel;
     }
 
-    private TsParameterModel convertRestParams(List<RestParam> restParams, SymbolTable symbolTable, RestMethodModel method, TsModel tsModel, String parameterName, String beanSuffix){
+    private void initServiceParameters(List<TsStatement> body, List<TsProperty> singleServiceParams, String argumentName){
+        body.add(new TsVariableDeclarationStatement(
+                false,
+                argumentName,
+                TsType.Any,
+                new TsObjectLiteral()
+        ));
+        for(TsProperty property : singleServiceParams){
+
+            String validJavaScriptArgumentName = Utils.toValidJavaScriptVariableName(property.getName());
+
+            TsExpressionStatement assignmentExpressionStatement = new TsExpressionStatement(
+                    new TsAssignmentExpression(
+                            new TsMemberExpression(
+                                    new TsIdentifierReference(argumentName),
+                                    property.getName()),
+                            new TsIdentifierReference(validJavaScriptArgumentName)
+                    )
+            );
+
+            if(property.getTsType() instanceof TsType.OptionalType){
+
+                body.add(
+                        new TsIfStatement(
+                                new TsBinaryExpression(
+                                        new TsIdentifierReference(validJavaScriptArgumentName),
+                                        TsBinaryOperator.NEQ,
+                                        settings.skipNullValuesForOptionalServiceArguments ?
+                                                TsIdentifierReference.Null : TsIdentifierReference.Undefined
+                                ),
+                                Collections.singletonList(assignmentExpressionStatement)
+                        )
+                );
+
+            } else {
+
+                body.add(assignmentExpressionStatement);
+
+            }
+        }
+    }
+
+    private TsParameterModel convertRestParams(List<RestParam> restParams, List<TsParameterModel> parameters, SymbolTable symbolTable, RestMethodModel method, TsModel tsModel, String parameterName, String beanSuffix, List<TsProperty> allSingles){
         if (restParams == null || restParams.isEmpty()){
             return null;
         }
@@ -802,7 +868,13 @@ public class ModelCompiler {
                 if (restParam instanceof RestParam.Single) {
                     final MethodParameterModel restParamMethodParameterModel = ((RestParam.Single) restParam).getRestParam();
                     final TsType type = typeFromJava(symbolTable, restParamMethodParameterModel.getType(), method.getName(), method.getOriginClass());
-                    currentSingles.add(new TsProperty(restParamMethodParameterModel.getName(), restParam.required ? type : new TsType.OptionalType(type)));
+                    TsProperty property = new TsProperty(restParamMethodParameterModel.getName(), restParam.required ? type : new TsType.OptionalType(type));
+                    currentSingles.add(property);
+                    allSingles.add(property);
+                    if(settings.generateClientAsService) {
+                        String validJavaScriptArgumentName = Utils.toValidJavaScriptVariableName(property.getName());
+                        parameters.add(new TsParameterModel(validJavaScriptArgumentName, property.getTsType()));
+                    }
                 }
                 if (restParam instanceof RestParam.Bean) {
                     final BeanModel paramBean = ((RestParam.Bean) restParam).getBean();
@@ -829,6 +901,7 @@ public class ModelCompiler {
             }
             flushSingles.run();
         }
+
         boolean allParamsOptional = restParams.stream().noneMatch(param -> param.required);
         TsType.IntersectionType paramType = new TsType.IntersectionType(types);
         return new TsParameterModel(parameterName, allParamsOptional ? new TsType.OptionalType(paramType) : paramType);
