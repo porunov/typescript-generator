@@ -9,7 +9,7 @@ import cz.habarta.typescript.generator.TypeScriptFileType;
 import cz.habarta.typescript.generator.TypeScriptGenerator;
 import cz.habarta.typescript.generator.parser.MethodParameterModel;
 import cz.habarta.typescript.generator.parser.RestMethodModel;
-import cz.habarta.typescript.generator.parser.RestQueryParam;
+import cz.habarta.typescript.generator.parser.RestParam;
 import cz.habarta.typescript.generator.util.Utils;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,6 +37,7 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -207,6 +208,26 @@ public class SpringTest {
         Assertions.assertTrue(output.contains("interface Data1"));
     }
 
+    @Test
+    public void testHeadersParameter() {
+        final Settings settings = TestUtils.settings();
+        settings.outputFileType = TypeScriptFileType.implementationFile;
+        settings.generateSpringApplicationClient = true;
+        settings.restHeaderArgumentsParsed = true;
+        final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(Controller10.class));
+        Assertions.assertTrue(output.contains("sendHeaders(headers: { ownerId: number; petId?: string; }): RestResponse<void>"));
+    }
+
+    @Test
+    public void testHeadersParameterWithQueryParameter() {
+        final Settings settings = TestUtils.settings();
+        settings.outputFileType = TypeScriptFileType.implementationFile;
+        settings.generateSpringApplicationClient = true;
+        settings.restHeaderArgumentsParsed = true;
+        final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(Controller11.class));
+        Assertions.assertTrue(output.contains("sendHeadersAndQueryParams(queryParams: { petId: string; }, headers: { ownerId: number; }): RestResponse<void>"));
+    }
+
     @RestController
     @RequestMapping("/owners/{ownerId}")
     public static class Controller1 {
@@ -344,6 +365,24 @@ public class SpringTest {
         int doSomethingElseAgain() {
             return 1;
         }
+    }
+
+    @RestController
+    public static class Controller10 {
+        @GetMapping("/headers1")
+        public void sendHeaders(
+                @RequestHeader Long ownerId,
+                @RequestHeader(required = false) String petId
+        ) {}
+    }
+
+    @RestController
+    public static class Controller11 {
+        @GetMapping("/headersWithQueryParams1")
+        public void sendHeadersAndQueryParams(
+                @RequestHeader Long ownerId,
+                @RequestParam String petId
+        ) {}
     }
 
     public static class Pet {
@@ -560,14 +599,14 @@ public class SpringTest {
         @Override
         public RestMethodModel build(Class<?> originClass, String name, Type returnType,
                                      Method originalMethod, Class<?> rootResource, String httpMethod,
-                                     String path, List<MethodParameterModel> pathParams, List<RestQueryParam> queryParams,
-                                     MethodParameterModel entityParam, List<String> comments) {
+                                     String path, List<MethodParameterModel> pathParams, List<RestParam> queryParams,
+                                     MethodParameterModel entityParam, List<String> comments, List<RestParam> headers) {
 
-            RestQueryParam.Single queryParam1 = new RestQueryParam.Single(new MethodParameterModel("testParam1", String.class), true);
-            RestQueryParam.Single queryParam2 = new RestQueryParam.Single(new MethodParameterModel("testParam2", Integer.class), false);
+            RestParam.Single queryParam1 = new RestParam.Single(new MethodParameterModel("testParam1", String.class), true);
+            RestParam.Single queryParam2 = new RestParam.Single(new MethodParameterModel("testParam2", Integer.class), false);
 
             return new RestMethodModel(originClass, "testName", returnType, originalMethod, rootResource, httpMethod, path,
-                    pathParams, Arrays.asList(queryParam1, queryParam2), entityParam, comments);
+                    pathParams, Arrays.asList(queryParam1, queryParam2), entityParam, comments, headers);
         }
     }
 

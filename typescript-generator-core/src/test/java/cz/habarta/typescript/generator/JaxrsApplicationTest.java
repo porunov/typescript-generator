@@ -8,7 +8,7 @@ import cz.habarta.typescript.generator.parser.JaxrsApplicationParser;
 import cz.habarta.typescript.generator.parser.MethodParameterModel;
 import cz.habarta.typescript.generator.parser.Model;
 import cz.habarta.typescript.generator.parser.RestMethodModel;
-import cz.habarta.typescript.generator.parser.RestQueryParam;
+import cz.habarta.typescript.generator.parser.RestParam;
 import cz.habarta.typescript.generator.parser.SourceType;
 import cz.habarta.typescript.generator.type.JGenericArrayType;
 import cz.habarta.typescript.generator.type.JTypeWithNullability;
@@ -383,7 +383,7 @@ public class JaxrsApplicationTest {
         final String errorMessage = "Unexpected output: " + output;
         // HttpClient
         Assertions.assertTrue(output.contains("interface HttpClient"), errorMessage);
-        Assertions.assertTrue(output.contains("request<R>(requestConfig: { method: string; url: string; queryParams?: any; data?: any; copyFn?: (data: R) => R; }): RestResponse<R>;"), errorMessage);
+        Assertions.assertTrue(output.contains("request<R>(requestConfig: { method: string; url: string; queryParams?: any; data?: any; copyFn?: (data: R) => R; headers?: any; }): RestResponse<R>;"), errorMessage);
         // application client
         Assertions.assertTrue(output.contains("class OrganizationApplicationClient"), errorMessage);
         Assertions.assertTrue(output.contains("getPerson(personId: number): RestResponse<Person>"), errorMessage);
@@ -405,7 +405,7 @@ public class JaxrsApplicationTest {
         final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(OrganizationApplication.class));
         final String errorMessage = "Unexpected output: " + output;
         // HttpClient
-        Assertions.assertTrue(output.contains("request<R>(requestConfig: { method: string; url: string; queryParams?: any; data?: any; copyFn?: (data: R) => R; options?: AxiosRequestConfig; }): RestResponse<R>;"), errorMessage);
+        Assertions.assertTrue(output.contains("request<R>(requestConfig: { method: string; url: string; queryParams?: any; data?: any; copyFn?: (data: R) => R; headers?: any; options?: AxiosRequestConfig; }): RestResponse<R>;"), errorMessage);
         // application client
         Assertions.assertTrue(output.contains("class OrganizationApplicationClient"), errorMessage);
         Assertions.assertTrue(output.contains("getPerson(personId: number, options?: AxiosRequestConfig): RestResponse<Person>"), errorMessage);
@@ -738,6 +738,31 @@ public class JaxrsApplicationTest {
         void test();
     }
 
+    @Test
+    public void testHeaderParam() {
+        final Settings settings = TestUtils.settings();
+        settings.generateJaxrsApplicationInterface = true;
+        settings.generateJaxrsApplicationClient = true;
+        settings.restHeaderArgumentsParsed = true;
+        settings.outputFileType = TypeScriptFileType.implementationFile;
+        final String output = new TypeScriptGenerator(settings).generateTypeScript(Input.from(HeaderParamResource.class));
+        Assertions.assertTrue(output.contains("sendHeadersWithQueryParam(queryParams?: { message?: string; }, headers?: { header1?: string; header2?: number; }): RestResponse<string[]>"));
+    }
+
+    @Path("bean-param")
+    @Produces(MediaType.APPLICATION_JSON)
+    public static class HeaderParamResource {
+
+        @POST
+        public List<String> sendHeadersWithQueryParam(
+                @HeaderParam(value = "header1") String params1,
+                @HeaderParam(value = "header2") Long params2,
+                @QueryParam("message") String message
+        ) {
+            return Collections.emptyList();
+        }
+    }
+
     public static void main(String[] args) {
         final ResourceConfig config = new ResourceConfig(BeanParamResource.class, JacksonFeature.class);
         JdkHttpServerFactory.createHttpServer(URI.create("http://localhost:9998/"), config);
@@ -749,11 +774,12 @@ public class JaxrsApplicationTest {
         @Override
         public RestMethodModel build(Class<?> originClass, String name, Type returnType,
                                      Method originalMethod, Class<?> rootResource, String httpMethod,
-                                     String path, List<MethodParameterModel> pathParams, List<RestQueryParam> queryParams,
-                                     MethodParameterModel entityParam, List<String> comments) {
+                                     String path, List<MethodParameterModel> pathParams, List<RestParam> queryParams,
+                                     MethodParameterModel entityParam, List<String> comments, List<RestParam> headers) {
 
             return new RestMethodModel(originClass, name, returnType, originalMethod, rootResource, httpMethod, path,
-                    Arrays.asList(new MethodParameterModel("testParam", String.class)), queryParams, entityParam, comments);
+                    Arrays.asList(new MethodParameterModel("testParam", String.class)), queryParams, entityParam,
+                    comments, headers);
         }
     }
 }
